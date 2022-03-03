@@ -81,6 +81,8 @@ namespace winrt::TerminalApp::implementation
         bool AlwaysOnTop() const;
 
         bool ShouldUsePersistedLayout();
+        bool ShouldImmediatelyHandoffToElevated();
+        void HandoffToElevated();
         hstring GetWindowLayoutJson(Microsoft::Terminal::Settings::Model::LaunchPosition position);
         void SaveWindowLayoutJsons(const Windows::Foundation::Collections::IVector<hstring>& layouts);
         void IdentifyWindow();
@@ -120,6 +122,7 @@ namespace winrt::TerminalApp::implementation
         bool GetShowTitleInTitlebar();
 
         winrt::Windows::Foundation::IAsyncOperation<winrt::Windows::UI::Xaml::Controls::ContentDialogResult> ShowDialog(winrt::Windows::UI::Xaml::Controls::ContentDialog dialog);
+        bool CanShowDialog();
         void DismissDialog();
 
         Windows::Foundation::Collections::IMapView<Microsoft::Terminal::Control::KeyChord, Microsoft::Terminal::Settings::Model::Command> GlobalHotkeys();

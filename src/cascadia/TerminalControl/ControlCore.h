@@ -166,7 +166,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
 
         static bool IsVintageOpacityAvailable() noexcept;
 
-        void AdjustOpacity(const int32_t& opacity, const bool& relative);
+        void AdjustOpacity(const double opacity, const bool relative);
 
         RUNTIME_SETTING(double, Opacity, _settings->Opacity());
         RUNTIME_SETTING(bool, UseAcrylic, _settings->UseAcrylic());
@@ -191,6 +191,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         TYPED_EVENT(RaiseNotice,               IInspectable, Control::NoticeEventArgs);
         TYPED_EVENT(TransparencyChanged,       IInspectable, Control::TransparencyChangedEventArgs);
         TYPED_EVENT(ReceivedOutput,            IInspectable, IInspectable);
+        TYPED_EVENT(FoundMatch,                IInspectable, Control::FoundResultsArgs);
         // clang-format on
 
     private:

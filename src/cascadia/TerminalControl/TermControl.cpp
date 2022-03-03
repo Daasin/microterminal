@@ -82,6 +82,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         _core.TransparencyChanged({ this, &TermControl::_coreTransparencyChanged });
         _core.RaiseNotice({ this, &TermControl::_coreRaisedNotice });
         _core.HoveredHyperlinkChanged({ this, &TermControl::_hoveredHyperlinkChanged });
+        _core.FoundMatch({ this, &TermControl::_coreFoundMatch });
         _interactivity.OpenHyperlink({ this, &TermControl::_HyperlinkHandler });
         _interactivity.ScrollPositionChanged({ this, &TermControl::_ScrollPositionChanged });
 
@@ -451,7 +452,10 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     {
         auto settings{ _core.Settings() };
         auto bgColor = til::color{ _core.FocusedAppearance().DefaultBackground() };
-        if (settings.UseAcrylic())
+        // GH#11743: Make sure to use the Core's current UseAcrylic value, not
+        // the one from the settings. The Core's runtime UseAcrylic may have
+        // changed from what was in the original settings.
+        if (_core.UseAcrylic())
         {
             // See if we've already got an acrylic background brush
             // to avoid the flicker when setting up a new one
@@ -536,12 +540,30 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     void TermControl::_changeBackgroundOpacity()
     {
         const auto opacity{ _core.Opacity() };
+        const auto useAcrylic{ _core.UseAcrylic() };
+
+        // GH#11743, #11619: If we're changing whether or not acrylic is used,
+        // then just entirely reinitialize the brush. The primary way that this
+        // happens is on Windows 10, where we need to enable acrylic when the
+        // user asks for <100% opacity. Even when we remove this Windows 10
+        // fallback, we may still need this for something like changing if
+        // acrylic is enabled at runtime (GH#2531)
         if (auto acrylic = RootGrid().Background().try_as<Media::AcrylicBrush>())
         {
+            if (!useAcrylic)
+            {
+                _InitializeBackgroundBrush();
+                return;
+            }
             acrylic.TintOpacity(opacity);
         }
         else if (auto solidColor = RootGrid().Background().try_as<Media::SolidColorBrush>())
         {
+            if (useAcrylic)
+            {
+                _InitializeBackgroundBrush();
+                return;
+            }
             solidColor.Opacity(opacity);
         }
     }
@@ -914,7 +936,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         // message without vkey or scanCode if a user drags a tab.
         // The KeyChord constructor has a debug assertion ensuring that all KeyChord
         // either have a valid vkey/scanCode. This is important, because this prevents
-        // accidential insertion of invalid KeyChords into classes like ActionMap.
+        // accidental insertion of invalid KeyChords into classes like ActionMap.
         if (!vkey && !scanCode)
         {
             e.Handled(true);
@@ -2713,7 +2735,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
         _core.ColorScheme(scheme);
     }
 
-    void TermControl::AdjustOpacity(const int32_t& opacity, const bool& relative)
+    void TermControl::AdjustOpacity(const double opacity, const bool relative)
     {
         _core.AdjustOpacity(opacity, relative);
     }
@@ -2726,4 +2748,28 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     {
         return _core.Opacity();
     }
+
+    // Method Description:
+    // - Called when the core raises a FoundMatch event. That's done in response
+    //   to us starting a search query with ControlCore::Search.
+    // - The args will tell us if there were or were not any results for that
+    //   particular search. We'll use that to control what to announce to
+    //   Narrator. When we have more elaborate search information to report, we
+    //   may want to report that here. (see GH #3920)
+    // Arguments:
+    // - args: contains information about the results that were or were not found.
+    // Return Value:
+    // - <none>
+    void TermControl::_coreFoundMatch(const IInspectable& /*sender*/, const Control::FoundResultsArgs& args)
+    {
+        if (auto automationPeer{ Automation::Peers::FrameworkElementAutomationPeer::FromElement(*this) })
+        {
+            automationPeer.RaiseNotificationEvent(
+                Automation::Peers::AutomationNotificationKind::ActionCompleted,
+                Automation::Peers::AutomationNotificationProcessing::ImportantMostRecent,
+                args.FoundMatch() ? RS_(L"SearchBox_MatchesAvailable") : RS_(L"SearchBox_NoMatches"), // what to announce if results were found
+                L"SearchBoxResultAnnouncement" /* unique name for this group of notifications */);
+        }
+    }
+
 }

@@ -396,7 +396,6 @@ namespace Microsoft::Console::Render
             Inlined         = 0x00000001,
 
             ColoredGlyph    = 0x00000002,
-            ThinFont        = 0x00000004,
 
             Cursor          = 0x00000008,
             Selected        = 0x00000010,
@@ -528,7 +527,6 @@ namespace Microsoft::Console::Render
         {
             const AtlasKey* key;
             const AtlasValue* value;
-            float scale;
         };
 
         struct CachedCursorOptions
@@ -556,8 +554,8 @@ namespace Microsoft::Console::Render
             //   This means a structure like {u32; u32; u32; u32x2} would require
             //   padding so that it is {u32; u32; u32; <4 byte padding>; u32x2}.
             alignas(sizeof(f32x4)) f32x4 viewport;
-            alignas(sizeof(f32x4)) f32x4 gammaRatios;
-            alignas(sizeof(f32)) f32 grayscaleEnhancedContrast = 0;
+            alignas(sizeof(f32x4)) f32 gammaRatios[4]{};
+            alignas(sizeof(f32)) f32 enhancedContrast = 0;
             alignas(sizeof(u32)) u32 cellCountX = 0;
             alignas(sizeof(u32x2)) u32x2 cellSize;
             alignas(sizeof(u32x2)) u32x2 underlinePos;
@@ -565,6 +563,7 @@ namespace Microsoft::Console::Render
             alignas(sizeof(u32)) u32 backgroundColor = 0;
             alignas(sizeof(u32)) u32 cursorColor = 0;
             alignas(sizeof(u32)) u32 selectionColor = 0;
+            alignas(sizeof(u32)) u32 useClearType = 0;
 #pragma warning(suppress : 4324) // 'ConstBuffer': structure was padded due to alignment specifier
         };
 
@@ -612,14 +611,14 @@ namespace Microsoft::Console::Render
         void _setCellFlags(SMALL_RECT coords, CellFlags mask, CellFlags bits) noexcept;
         u16x2 _allocateAtlasTile() noexcept;
         void _flushBufferLine();
-        void _emplaceGlyph(IDWriteFontFace* fontFace, float scale, size_t bufferPos1, size_t bufferPos2);
+        void _emplaceGlyph(IDWriteFontFace* fontFace, size_t bufferPos1, size_t bufferPos2);
 
         // AtlasEngine.api.cpp
+        void _resolveAntialiasingMode() noexcept;
         void _resolveFontMetrics(const FontInfoDesired& fontInfoDesired, FontInfo& fontInfo, FontMetrics* fontMetrics = nullptr) const;
 
         // AtlasEngine.r.cpp
         void _setShaderResources() const;
-        static f32x4 _getGammaRatios(float gamma) noexcept;
         void _updateConstantBuffer() const noexcept;
         void _adjustAtlasSize();
         void _reserveScratchpadSize(u16 minWidth);
@@ -649,6 +648,7 @@ namespace Microsoft::Console::Render
             bool isWindows10OrGreater = true;
 
 #ifndef NDEBUG
+            std::filesystem::path sourceDirectory;
             wil::unique_folder_change_reader_nothrow sourceCodeWatcher;
             std::atomic<int64_t> sourceCodeInvalidationTime{ INT64_MAX };
 #endif
@@ -695,6 +695,7 @@ namespace Microsoft::Console::Render
             std::vector<AtlasQueueItem> glyphQueue;
 
             f32 gamma = 0;
+            f32 cleartypeEnhancedContrast = 0;
             f32 grayscaleEnhancedContrast = 0;
             u32 backgroundColor = 0xff000000;
             u32 selectionColor = 0x7fffffff;
@@ -723,6 +724,8 @@ namespace Microsoft::Console::Render
             Buffer<DWRITE_SHAPING_TEXT_PROPERTIES> textProps;
             Buffer<u16> glyphIndices;
             Buffer<DWRITE_SHAPING_GLYPH_PROPERTIES> glyphProps;
+            Buffer<f32> glyphAdvances;
+            Buffer<DWRITE_GLYPH_OFFSET> glyphOffsets;
             std::vector<DWRITE_FONT_FEATURE> fontFeatures; // changes are flagged as ApiInvalidations::Font|Size
             std::vector<DWRITE_FONT_AXIS_VALUE> fontAxisValues; // changes are flagged as ApiInvalidations::Font|Size
             FontMetrics fontMetrics; // changes are flagged as ApiInvalidations::Font|Size
@@ -734,10 +737,13 @@ namespace Microsoft::Console::Render
             u32 backgroundOpaqueMixin = 0xff000000; // changes are flagged as ApiInvalidations::Device
             u32x2 currentColor;
             AtlasKeyAttributes attributes{};
-            u16 currentRow = 0;
+            u16x2 lastPaintBufferLineCoord;
             CellFlags flags = CellFlags::None;
             // SetSelectionBackground()
             u32 selectionColor = 0x7fffffff;
+            // UpdateHyperlinkHoveredId()
+            u16 hyperlinkHoveredId = 0;
+            bool bufferLineWasHyperlinked = false;
 
             // dirtyRect is a computed value based on invalidatedRows.
             til::rect dirtyRect;
@@ -751,7 +757,8 @@ namespace Microsoft::Console::Render
             wil::unique_handle swapChainHandle;
             HWND hwnd = nullptr;
             u16 dpi = USER_DEFAULT_SCREEN_DPI; // changes are flagged as ApiInvalidations::Font|Size
-            u16 antialiasingMode = D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE; // changes are flagged as ApiInvalidations::Font
+            u8 antialiasingMode = D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE; // changes are flagged as ApiInvalidations::Font
+            u8 realizedAntialiasingMode = D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE; // caches antialiasingMode, depends on antialiasingMode and backgroundOpaqueMixin, see _resolveAntialiasingMode
 
             ApiInvalidations invalidations = ApiInvalidations::Device;
         } _api;

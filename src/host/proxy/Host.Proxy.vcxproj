@@ -7,6 +7,16 @@
     <ProjectName>OpenConsoleProxy</ProjectName>
     <TargetName>OpenConsoleProxy</TargetName>
     <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <!--
+    !! LOAD BEARING !!
+    We need this to be a static library during Fuzzing builds.
+    OpenConsoleProxy is a hard build dependency of OpenConsole, because it produces the interface
+    headers for its IDL files. When building with Fuzzing, the DLL build fails; it tries to produce
+    a usable PE file though it's not a fuzzing target.
+    Conditionally changing this to a static library maintains the OpenConsole build dependency during
+    regular builds, while preventing the build failure during fuzzing builds.
+    -->
+    <ConfigurationType Condition="'$(Configuration)'=='Fuzzing'">StaticLibrary</ConfigurationType>
   </PropertyGroup>
   <Import Project="$(SolutionDir)src\common.build.pre.props" />
   <ItemGroup>
@@ -50,7 +60,7 @@
       <PreprocessorDefinitions>PROXY_CLSID_IS={0x1833E661,0xCC81,0x4DD0,{0x87,0xC6,0xC2,0xF7,0x4B,0xD3,0x9E,0xFA}};%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(WindowsTerminalBranding)'==''">
+  <ItemDefinitionGroup Condition="'$(WindowsTerminalBranding)'=='' or '$(WindowsTerminalBranding)'=='Dev'">
     <ClCompile>
       <PreprocessorDefinitions>PROXY_CLSID_IS={0xDEC4804D,0x56D1,0x4F73,{0x9F,0xBE,0x68,0x28,0xE7,0xC8,0x5C,0x56}};%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>

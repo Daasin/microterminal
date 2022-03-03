@@ -591,7 +591,7 @@ try
     RETURN_IF_FAILED(_d3dDevice.As(&_dxgiDevice));
     RETURN_IF_FAILED(_d2dFactory->CreateDevice(_dxgiDevice.Get(), _d2dDevice.ReleaseAndGetAddressOf()));
 
-    // Create a device context out of it (supercedes render targets)
+    // Create a device context out of it (supersedes render targets)
     RETURN_IF_FAILED(_d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &_d2dDeviceContext));
 
     if (createSwapChain)
@@ -1705,7 +1705,7 @@ try
     const auto existingColor = _d2dBrushForeground->GetColor();
     const auto restoreBrushOnExit = wil::scope_exit([&]() noexcept { _d2dBrushForeground->SetColor(existingColor); });
 
-    _d2dBrushForeground->SetColor(_ColorFFromColorRef(color));
+    _d2dBrushForeground->SetColor(_ColorFFromColorRef(color | 0xff000000));
 
     const D2D1_SIZE_F font = _fontRenderData->GlyphCell().to_d2d_size();
     const D2D_POINT_2F target = { coordTarget.X * font.width, coordTarget.Y * font.height };
@@ -1962,7 +1962,7 @@ CATCH_RETURN()
     if (_drawingContext)
     {
         _drawingContext->forceGrayscaleAA = _ShouldForceGrayscaleAA();
-        _drawingContext->useBoldFont = textAttributes.IsBold() && renderSettings.GetRenderMode(RenderSettings::Mode::IntenseIsBold);
+        _drawingContext->useBoldFont = textAttributes.IsIntense() && renderSettings.GetRenderMode(RenderSettings::Mode::IntenseIsBold);
         _drawingContext->useItalicFont = textAttributes.IsItalic();
     }
 

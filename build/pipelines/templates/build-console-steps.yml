@@ -126,7 +126,7 @@ steps:
   displayName: 'Publish All Build Artifacts'
   inputs:
     PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-    ArtifactName: 'drop'  
+    ArtifactName: 'drop'
 
 - task: CopyFiles@2
   displayName: 'Copy PGO databases needed for PGO instrumentation run'
@@ -147,7 +147,7 @@ steps:
 
 - task: PublishBuildArtifacts@1
   displayName: 'Publish Artifact: binlog'
-  condition: failed()
+  condition: always()
   continueOnError: True
   inputs:
     PathtoPublish: $(Build.SourcesDirectory)\msbuild.binlog

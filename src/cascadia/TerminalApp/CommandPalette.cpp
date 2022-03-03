@@ -164,11 +164,16 @@ namespace winrt::TerminalApp::implementation
     // - the approximate number of items visible in the list (in other words the size of the page)
     uint32_t CommandPalette::_getNumVisibleItems()
     {
-        const auto container = _filteredActionsView().ContainerFromIndex(0);
-        const auto item = container.try_as<winrt::Windows::UI::Xaml::Controls::ListViewItem>();
-        const auto itemHeight = ::base::saturated_cast<int>(item.ActualHeight());
-        const auto listHeight = ::base::saturated_cast<int>(_filteredActionsView().ActualHeight());
-        return listHeight / itemHeight;
+        if (const auto container = _filteredActionsView().ContainerFromIndex(0))
+        {
+            if (const auto item = container.try_as<winrt::Windows::UI::Xaml::Controls::ListViewItem>())
+            {
+                const auto itemHeight = ::base::saturated_cast<int>(item.ActualHeight());
+                const auto listHeight = ::base::saturated_cast<int>(_filteredActionsView().ActualHeight());
+                return listHeight / itemHeight;
+            }
+        }
+        return 0;
     }
 
     // Method Description:
@@ -822,16 +827,15 @@ namespace winrt::TerminalApp::implementation
         {
             const auto currentNeedleHasResults{ _filteredActions.Size() > 0 };
             _noMatchesText().Visibility(currentNeedleHasResults ? Visibility::Collapsed : Visibility::Visible);
-            if (!currentNeedleHasResults)
+            if (auto automationPeer{ Automation::Peers::FrameworkElementAutomationPeer::FromElement(_searchBox()) })
             {
-                if (auto automationPeer{ Automation::Peers::FrameworkElementAutomationPeer::FromElement(_searchBox()) })
-                {
-                    automationPeer.RaiseNotificationEvent(
-                        Automation::Peers::AutomationNotificationKind::ActionCompleted,
-                        Automation::Peers::AutomationNotificationProcessing::ImportantMostRecent,
-                        NoMatchesText(), // NoMatchesText contains the right text for the current mode
-                        L"CommandPaletteResultAnnouncement" /* unique name for this notification */);
-                }
+                automationPeer.RaiseNotificationEvent(
+                    Automation::Peers::AutomationNotificationKind::ActionCompleted,
+                    Automation::Peers::AutomationNotificationProcessing::ImportantMostRecent,
+                    currentNeedleHasResults ?
+                        winrt::hstring{ fmt::format(std::wstring_view{ RS_(L"CommandPalette_MatchesAvailable") }, _filteredActions.Size()) } :
+                        NoMatchesText(), // what to announce if results were found
+                    L"CommandPaletteResultAnnouncement" /* unique name for this group of notifications */);
             }
         }
         else
